@@ -135,6 +135,14 @@ Requests in `useMemecoins.js` go to `/api/v3/coins/markets?...`.
 
 ---
 
+## Screenshots
+
+**Main interface**  
+![Main interface](<images/Screenshot 2025-06-18 212002.png>)
+
+**Chart drawer open**  
+![Chart drawer open](<images/Screenshot 2025-06-18 211902.png>)
+
 ## Contributing
 
 1. Fork the repo
