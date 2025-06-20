@@ -1,47 +1,49 @@
-﻿export default function BuyConfirm({ coin, isOpen, onClose }) {
-  // don’t render anything if closed
-  if (!isOpen) return null;
+﻿import React, { useState } from "react";
 
-  // “Buy” handler
-  function handleBuy() {
-    alert(`Pretend we bought \$${coin.current_price} of ${coin.name}`);
-    onClose();
-  }
+export default function BuyConfirm({ coin, isOpen, onClose }) {
+  const [amount, setAmount] = useState("");
+  if (!isOpen || !coin) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
+    <>
+      {/* backdrop */}
       <div
-        className="absolute inset-0 bg-black/60"
+        className="fixed inset-0 bg-black/50 z-50"
         onClick={onClose}
       />
 
-      {/* Modal panel */}
-      <div className="relative bg-card p-6 max-w-sm w-full rounded shadow-xl">
-        <h3 className="text-lg font-medium text-white mb-4">Confirm purchase</h3>
-        <p className="text-sm text-gray-300 mb-6">
-          Buy <span className="text-white font-semibold">{coin.name}</span>{" "}
-          ({coin.symbol.toUpperCase()}) at{" "}
-          <span className="text-white font-semibold">
-            ${coin.current_price}
-          </span>
-          ?
-        </p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="rounded px-3 py-1 bg-white/10 hover:bg-white/20 text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleBuy}
-            className="rounded px-3 py-1 bg-accent text-white text-sm"
-          >
-            Buy
-          </button>
+      {/* modal */}
+      <div className="fixed inset-0 flex items-center justify-center z-50">
+        <div className="bg-card p-6 rounded-lg max-w-sm w-full text-white">
+          <h2 className="text-lg font-semibold mb-4">
+            Quick Buy: {coin.name}
+          </h2>
+          <input
+            type="number"
+            placeholder="Amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full mb-4 px-3 py-2 bg-bg rounded focus:outline-none"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              className="px-4 py-2 bg-white/10 rounded hover:bg-white/20"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-4 py-2 bg-accent rounded text-white hover:bg-accent/90"
+              onClick={() => {
+                console.log("Buying", amount, coin.id);
+                onClose();
+              }}
+            >
+              Confirm
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

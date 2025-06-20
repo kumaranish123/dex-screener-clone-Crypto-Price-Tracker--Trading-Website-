@@ -1,53 +1,89 @@
-﻿export default function ChartDrawer({ coin, isOpen, onClose }) {
-  if (!isOpen || !coin) return null;
+﻿import { useEffect } from "react";
 
-  // build the TradingView embed URL
-  const symbol = coin.symbol.toUpperCase() + "USD";
-  const url = `https://s.tradingview.com/widgetembed/?frameElementId=tv_${coin.id}
-    &symbol=COINBASE%3A${symbol}
-    &interval=60
-    &toolbarbg=1f1f3f
-    &theme=Dark
-    &style=1
-    &locale=en
-    &hide_top_toolbar=true`
-    .replace(/\s+/g, "");
+/**
+ * Plain drawer (no HeadlessUI) showing a TradingView chart.
+ * Props:
+ *  – coin    : CoinGecko coin object
+ *  – isOpen  : boolean, drawer visibility
+ *  – onClose : function to close
+ */
+export default function ChartDrawer({ coin, isOpen, onClose }) {
+  // 1 – inject TradingView script once
+  useEffect(() => {
+    if (window.TradingView) return;
+    const s = document.createElement("script");
+    s.src = "https://s3.tradingview.com/tv.js";
+    s.async = true;
+    document.head.appendChild(s);
+  }, []);
+
+  // 2 – when open, coin selected, and script loaded, render chart
+  useEffect(() => {
+    if (!isOpen || !coin || !window.TradingView) return;
+    const timer = setTimeout(() => {
+      const container = document.getElementById("tv_chart_container");
+      if (!container) return;
+      container.innerHTML = "";
+      new window.TradingView.widget({
+        container_id      : "tv_chart_container",
+        symbol            : coin.symbol.toUpperCase() + "USD",
+        interval          : "60",
+        timezone          : "Etc/UTC",
+        theme             : "dark",
+        style             : "1",
+        locale            : "en",
+        width             : "100%",
+        height            : 400,
+        toolbar_bg        : "#151515",
+        hide_side_toolbar : false,
+      });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, coin]);
+
+  // if not open, render nothing
+  if (!isOpen) return null;
 
   return (
-    <>
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-40 flex">
+      {/* backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/60"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
 
-      {/* Drawer panel */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-bg p-4 shadow-lg overflow-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-2">
-          <h2 className="text-lg font-semibold text-white">
-            {coin.name} Chart
+      {/* panel */}
+      <div className="relative ml-auto flex h-full w-screen max-w-md flex-col bg-card shadow-xl">
+        {/* header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <h2 className="text-lg font-medium text-white">
+            {coin ? `${coin.name} (${coin.symbol.toUpperCase()})` : "Loading…"}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-xl"
+            className="rounded p-1 hover:bg-white/10 focus:outline-none"
           >
-            ×
+            ✕
           </button>
         </div>
 
-        {/* Iframe */}
-        <div className="mt-4 h-full">
-          <iframe
-            src={url}
-            width="100%"
-            height="100%"
-            frameBorder="0"
-            allowFullScreen
-            className="rounded"
-          />
+        {/* chart container */}
+        <div id="tv_chart_container" className="flex-1" />
+
+        {/* footer link */}
+        <div className="px-4 py-3 border-t border-white/10">
+          {coin && (
+            <a
+              href={`https://www.coingecko.com/en/coins/${coin.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent underline text-sm"
+            >
+              View on CoinGecko →
+            </a>
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
