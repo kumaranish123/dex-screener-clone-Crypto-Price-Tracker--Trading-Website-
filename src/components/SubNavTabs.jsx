@@ -10,7 +10,7 @@ export default function SubNavTabs({ value, onChange }) {
           <button
             key={tab}
             onClick={() => onChange(tab)}
-            className={`text-sm pb-1 ${
+            className={`pb-1 text-sm ${
               value === tab
                 ? "text-white border-b-2 border-accent"
                 : "text-gray-400 hover:text-white/80"
