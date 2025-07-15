@@ -1,56 +1,53 @@
 ﻿// ───────────────────────────────────────────────
-//  BuyConfirm.jsx   –   SOL → USDC test swap
+//  BuyConfirm.jsx   –   SOL → Token swap (Jupiter)
 // ───────────────────────────────────────────────
 import { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { getQuote, getSwapTx } from "../hooks/useJupiter";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import useJupiterSwap from "../hooks/useJupiterSwap";
 import toast from "react-hot-toast";
 
-const SOL_MINT  = "So11111111111111111111111111111111111111112";          // SOL
-const USDC_MINT = "8L8pDf3jutdpdr4m3np68CL9ZroLActrqwxi6s9Ah5xU";          // USDC
+const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 export default function BuyConfirm({ coin, isOpen, onClose }) {
-  const [amount, setAmount] = useState("");        // user-entered SOL
-  const { publicKey /*, signAndSendTransaction */ } = useWallet();
+  const [amount, setAmount] = useState(""); // user-entered SOL
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const { buyToken, loading, error } = useJupiterSwap(connection, wallet);
 
   if (!isOpen || !coin) return null;
 
-  // ─────────────────────────────
   async function handleSwap() {
     const uiAmount = Number(amount || "0");
-    if (!publicKey) return toast.error("Connect wallet first");
+    if (!wallet.connected) return toast.error("Connect wallet first");
     if (uiAmount <= 0) return toast.error("Enter amount > 0");
+    if (!coin.mintAddress) return toast.error("Token mint address missing");
 
     const tId = toast.loading("Fetching quote…");
-
-    try {
-      // 1️⃣  Get quote  — THREE POSITIONAL ARGS
-      const quote = await getQuote(
-        SOL_MINT,          // inputMint
-        USDC_MINT,         // outputMint  (debug)
-        uiAmount           // UI amount in SOL
-      );
-
-      // 2️⃣  Ask for signed swap TX
-      const { swapTransaction } = await getSwapTx(
-        quote,
-        publicKey.toBase58()
-      );
-
-      // TODO: decode, sign & send – omitted for brevity
-      // await signAndSendTransaction(…swapTransaction…);
-
-      toast.success("Swap TX received from Jupiter", { id: tId });
-      onClose();
-    } catch (err) {
-      console.error("Jupiter error body →", err?.response?.data || err);
-      toast.error(
-        "Swap failed: " + (err?.response?.data?.error || err.message),
+    const res = await buyToken({
+      outputMint: coin.mintAddress,
+      amountSol: uiAmount,
+      slippageBps: 100,
+    });
+    if (res.success) {
+      toast.success(
+        <span>
+          Trade sent! {" "}
+          <a
+            href={`https://solscan.io/tx/${res.txid}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#2970ff" }}
+          >
+            View on Solscan
+          </a>
+        </span>,
         { id: tId }
       );
+      onClose();
+    } else {
+      toast.error(res.error || "Swap failed", { id: tId });
     }
   }
-  // ─────────────────────────────
 
   return (
     <>
@@ -67,23 +64,32 @@ export default function BuyConfirm({ coin, isOpen, onClose }) {
             placeholder="Amount in SOL"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            min={0}
+            step={0.001}
             className="mb-4 w-full rounded bg-bg px-3 py-2 focus:outline-none"
+            disabled={loading}
           />
 
           <div className="flex justify-end gap-2">
             <button
               onClick={onClose}
               className="rounded bg-white/10 px-4 py-2 hover:bg-white/20"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               onClick={handleSwap}
-              className="rounded bg-accent px-4 py-2 hover:bg-accent/90"
+              className="rounded bg-accent px-4 py-2 hover:bg-accent/90 flex items-center justify-center min-w-[90px]"
+              disabled={loading || !wallet.connected || !amount || Number(amount) <= 0}
             >
-              Confirm
+              {loading ? (
+                <span className="loader mr-2" />
+              ) : null}
+              {loading ? "Processing…" : "Confirm"}
             </button>
           </div>
+          {error && <div className="text-red-500 mt-2">{error}</div>}
         </div>
       </div>
     </>

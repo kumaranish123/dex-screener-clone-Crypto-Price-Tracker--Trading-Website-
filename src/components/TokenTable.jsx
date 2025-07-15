@@ -39,16 +39,21 @@ function formatTimeRemaining(seconds) {
 /* ---------------------------------------------------------- */
 export default function TokenTable({ search, onRow, onBuy }) {
   const { data: memecoins, loading: memecoinsLoading, error: memecoinsError } = useMemecoins();
-  const { data: pumpData, loading: pumpLoading, getTrendingPools, getEndingSoonPools } = usePumpFun();
+  const { data: pumpData, loading: pumpLoading, getTrendingPools } = usePumpFun();
 
-  // Combine data sources
-  const allData = [...(memecoins || []), ...(pumpData || [])];
+  // Limit Jupiter tokens to 10
+  const jupTokens = (memecoins || []).slice(0, 10);
+  // Limit Pump.fun trending tokens to 3
+  const trendingPumpTokens = getTrendingPools(3).filter(t => t.name && t.symbol);
   const loading = memecoinsLoading || pumpLoading;
   const error = memecoinsError;
 
+  console.log("memecoins", memecoins, "loading", loading);
+
   const rows = loading
     ? Array(10).fill({})
-    : allData.filter((c) =>
+    : [...trendingPumpTokens, ...jupTokens].filter((c, idx, arr) =>
+        arr.findIndex(x => x.symbol === c.symbol) === idx &&
         (c.name + c.symbol).toLowerCase().includes(search.toLowerCase())
       );
 
@@ -76,7 +81,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-400 text-sm">Trending</p>
-              <p className="text-white font-semibold text-lg">{getTrendingPools(5).length}</p>
+              <p className="text-white font-semibold text-lg">{/* getTrendingPools(5).length */}</p>
             </div>
             <ArrowUpIcon className="w-8 h-8 text-green-400" />
           </div>
@@ -86,7 +91,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-400 text-sm">Ending Soon</p>
-              <p className="text-white font-semibold text-lg">{getEndingSoonPools(5).length}</p>
+              <p className="text-white font-semibold text-lg">{/* getEndingSoonPools(5).length */}</p>
             </div>
             <ClockIcon className="w-8 h-8 text-orange-400" />
           </div>
@@ -96,7 +101,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-400 text-sm">Active Launches</p>
-              <p className="text-white font-semibold text-lg">{pumpData?.filter(p => p.status === 'active').length || 0}</p>
+              <p className="text-white font-semibold text-lg">{/* pumpData?.filter(p => p.status === 'active').length || 0 */}</p>
             </div>
             <FireIcon className="w-8 h-8 text-red-400" />
           </div>
@@ -104,15 +109,15 @@ export default function TokenTable({ search, onRow, onBuy }) {
       </div>
 
       <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
+      <table className="min-w-full text-sm table-fixed">
         <thead className="bg-card/80 text-left text-gray-500">
           <tr className="whitespace-nowrap">
-              <th className="px-5 py-4">Token</th>
-              <th className="px-5 py-4 hidden sm:table-cell">Price</th>
-              <th className="px-5 py-4 hidden md:table-cell">Market Cap</th>
-              <th className="px-5 py-4 hidden lg:table-cell">Volume</th>
-              <th className="px-5 py-4 hidden xl:table-cell">Progress</th>
-              <th className="px-5 py-4">Action</th>
+              <th className="px-5 py-4 w-56 max-w-xs truncate">Token</th>
+              <th className="px-5 py-4 w-32 hidden sm:table-cell">Price</th>
+              <th className="px-5 py-4 w-36 hidden md:table-cell">Market Cap</th>
+              <th className="px-5 py-4 w-32 hidden lg:table-cell">Volume</th>
+              <th className="px-5 py-4 w-28 hidden xl:table-cell">Progress</th>
+              <th className="px-5 py-4 w-28">Action</th>
           </tr>
         </thead>
 
@@ -128,7 +133,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
                 onClick={() => !loading && onRow?.(c)}
               >
                   {/* Token info ------------------------------------- */}
-                <td className="px-5 py-4">
+                <td className="px-5 py-4 w-56 max-w-xs truncate">
                   {loading ? (
                       <div className="animate-pulse bg-gray-600 h-12 w-32 rounded"></div>
                   ) : (
@@ -136,7 +141,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
                         <div className="flex items-center gap-3">
                           <div className="relative">
                         <img
-                          src={c.image}
+                          src={c.logoURI}
                           alt={c.name}
                               className="h-10 w-10 rounded-full border-2 border-white/10"
                         />
@@ -171,7 +176,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
                   </td>
 
                   {/* Price ------------------------------------------- */}
-                  <td className="px-5 py-4 hidden sm:table-cell">
+                  <td className="px-5 py-4 w-32 hidden sm:table-cell">
                     {loading ? (
                       <div className="animate-pulse bg-gray-600 h-4 w-16 rounded"></div>
                     ) : (
@@ -194,7 +199,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
                 </td>
 
                   {/* Market Cap -------------------------------------- */}
-                <td className="px-5 py-4 hidden md:table-cell">
+                <td className="px-5 py-4 w-36 hidden md:table-cell">
                     {loading ? (
                       <div className="animate-pulse bg-gray-600 h-4 w-20 rounded"></div>
                     ) : (
@@ -203,7 +208,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
                 </td>
 
                   {/* Volume ------------------------------------------ */}
-                <td className="px-5 py-4 hidden lg:table-cell">
+                <td className="px-5 py-4 w-32 hidden lg:table-cell">
                     {loading ? (
                       <div className="animate-pulse bg-gray-600 h-4 w-20 rounded"></div>
                     ) : (
@@ -212,7 +217,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
                 </td>
 
                   {/* Progress (for pump tokens) --------------------- */}
-                <td className="px-5 py-4 hidden xl:table-cell">
+                <td className="px-5 py-4 w-28 hidden xl:table-cell">
                   {loading ? (
                       <div className="animate-pulse bg-gray-600 h-4 w-20 rounded"></div>
                     ) : isPumpToken && c.progressPercentage ? (
@@ -235,7 +240,7 @@ export default function TokenTable({ search, onRow, onBuy }) {
 
                   {/* Buy button -------------------------------------- */}
                 <td
-                  className="px-5 py-4"
+                  className="px-5 py-4 w-28"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {loading ? (

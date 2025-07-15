@@ -1,41 +1,37 @@
 ﻿import { useEffect, useState } from "react";
-import axios from "axios";
 
-/**
- * Mocked fetch: reads from public/memecoins.json, polling every 5s.
- */
 export default function useMemecoins() {
-  const [data, setData]    = useState([]);
+  const [data, setData] = useState([]);
   const [loading, setLoad] = useState(true);
-  const [error, setError]  = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    let timerId;
-
-    async function load() {
-      if (cancelled) return;
-      setLoad(true);
-      try {
-        const res = await axios.get("/memecoins.json");
+    setLoad(true);
+    fetch("/tokens.json")
+      .then(res => {
+        if (!res.ok) throw new Error("Local token list fetch failed");
+        return res.json();
+      })
+      .then(tokens => {
         if (!cancelled) {
-          setData(res.data);
+          const mapped = tokens.map(t => ({
+            ...t,
+            mintAddress: t.address,
+          }));
+          setData(mapped);
           setError(null);
+          console.log("Loaded tokens:", mapped);
         }
-      } catch (err) {
+      })
+      .catch(err => {
         if (!cancelled) setError(err);
-      } finally {
-        if (!cancelled) {
-          setLoad(false);
-          timerId = setTimeout(load, 5000);
-        }
-      }
-    }
-
-    load();
+      })
+      .finally(() => {
+        if (!cancelled) setLoad(false);
+      });
     return () => {
       cancelled = true;
-      clearTimeout(timerId);
     };
   }, []);
 

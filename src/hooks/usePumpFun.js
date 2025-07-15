@@ -22,34 +22,29 @@ export default function usePumpFun() {
     let timerId;
 
     async function load() {
-      const target = "https://client-api.pump.fun/v2/launchpad/active?page=0&limit=100";
-      const url = "https://thingproxy.freeboard.io/fetch/" + encodeURIComponent(target);
+      // Use Vite proxy in dev, /api/pump/active in prod
+      const url = process.env.NODE_ENV === 'development'
+        ? '/pump/active'
+        : '/api/pump/active';
 
       try {
-        const res = await axios.get(url, { timeout: 10000 });
+        const res = await axios.get(url, { params: { page: 0, limit: 100 }, timeout: 10000 });
         const pools = res.data?.pools ?? [];
-        
         // Enhance data with additional calculations
         const enhancedPools = pools.map(pool => ({
           ...pool,
-          // Calculate time remaining
           timeRemaining: Math.max(0, pool.endTime - Date.now() / 1000),
-          // Calculate progress percentage
           progressPercentage: pool.totalRaisedUsd / (pool.softCapUsd || pool.hardCapUsd) * 100,
-          // Calculate price change if available
           priceChange: pool.currentPriceUsd ? 
             ((pool.currentPriceUsd - pool.launchPriceUsd) / pool.launchPriceUsd) * 100 : 0,
-          // Status based on time and caps
           status: getPoolStatus(pool)
         }));
-
         setData(enhancedPools);
         setError(null);
         setLastUpdate(new Date());
       } catch (e) {
         console.warn("Pump.fun fetch failed → using enhanced mock data", e.message);
         setError(e);
-        
         // Enhanced mock data
         setData([
           {
@@ -88,7 +83,6 @@ export default function usePumpFun() {
         setLastUpdate(new Date());
       } finally {
         setLoad(false);
-        // Update every 30 seconds for real-time data
         timerId = setTimeout(load, 30000);
       }
     }

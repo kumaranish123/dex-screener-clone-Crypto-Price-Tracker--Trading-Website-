@@ -19,6 +19,13 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/pump-api/, ""),
       },
+
+      // call  http://localhost:5173/pump/active?page=0&limit=100
+      '/pump': {
+        target: 'https://client-api.pump.fun',
+        changeOrigin: true,
+        rewrite: p => p.replace(/^\/pump/, '/v2/launchpad'),
+      },
     },
   },
 });
