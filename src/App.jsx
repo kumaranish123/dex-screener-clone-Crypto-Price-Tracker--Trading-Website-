@@ -10,94 +10,112 @@ import Header from "./components/Header";
 import SubNavTabs from "./components/SubNavTabs";
 import TimeRangeButtons from "./components/TimeRangeButtons";
 import TokenTable from "./components/TokenTable";
-import PumpLiveTable from "./components/PumpLiveTable";
 import ChartDrawer from "./components/ChartDrawer";
 import BuyConfirm from "./components/BuyConfirm";
 import { Toaster } from "react-hot-toast";
+import useWalletBalance from './hooks/useWalletBalance';
 
-export default function App() {
+// Exact mainnet Mint addresses
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
+const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyB7u6H'; // Corrected full mint address
+const USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'; // Corrected full mint address
+
+function App() {
   /* global UI state */
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("DEX Screener");
   const [timeRange, setTimeRange] = useState("1h");
-
-  /* row-interaction state (DEX Screener only) */
+  const [viewPreset, setViewPreset] = useState("S1");
   const [selected, setSelected] = useState(null);
   const [showBuy, setShowBuy] = useState(false);
-  const [viewPreset, setViewPreset] = useState("S1");
+  
+  const [quickBuySol, setQuickBuySol] = useState(0.01);
+  const [inputMint, setInputMint] = useState(SOL_MINT);
+  const [mode, setMode] = useState('dex'); // 'dex' | 'trending' | 'pump'
+
+  // map of mint→decimals
+  const DECIMALS = {
+    [SOL_MINT]: 9,
+    [USDC_MINT]: 6,
+    [USDT_MINT]: 6,
+  };
+  const inputDecimals = DECIMALS[inputMint] || 0;
+
+  const { balance: walletBalance, loading: balLoading } =
+    useWalletBalance(inputMint, inputDecimals);
+
+  /* row-interaction state (DEX Screener only) */
+  // const [selected, setSelected] = useState(null);
+  // const [showBuy, setShowBuy] = useState(false);
+  // const [viewPreset, setViewPreset] = useState("S1");
 
   return (
     <>
       {/* header */}
       <Header value={search} onChange={e => setSearch(e.target.value)} />
 
-      {/* sub-navigation */}
-      <SubNavTabs value={activeTab} onChange={setActiveTab} />
-
-      {/* secondary toolbar */}
-      <section className="mx-auto mt-4 flex max-w-7xl items-center justify-between px-4">
-        {/* left */}
-        <div className="flex items-center gap-8">
-          <h2 className="text-lg font-medium text-white">{activeTab}</h2>
-          <TimeRangeButtons value={timeRange} onChange={setTimeRange} />
+      {/* Unified toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 mt-4 max-w-7xl mx-auto px-4">
+        {/* Tab bar */}
+        <div className="flex gap-2 md:gap-4">
+          <button
+            className={`px-4 py-2 rounded ${mode === 'dex' ? 'bg-accent text-white font-bold' : 'bg-card text-gray-300'}`}
+            onClick={() => setMode('dex')}
+          >DEX Screener</button>
+          <button
+            className={`px-4 py-2 rounded ${mode === 'trending' ? 'bg-accent text-white font-bold' : 'bg-card text-gray-300'}`}
+            onClick={() => setMode('trending')}
+          >Trending</button>
+          <button
+            className={`px-4 py-2 rounded ${mode === 'pump' ? 'bg-accent text-white font-bold' : 'bg-card text-gray-300'}`}
+            onClick={() => setMode('pump')}
+          >Pump Live</button>
         </div>
-
-        {/* right */}
-        <div className="flex items-center gap-4">
-          <button className="flex items-center gap-1 rounded-md bg-card/80 px-3.5 py-1.5 text-sm text-gray-300 hover:bg-card/70">
-            <FunnelIcon className="h-5 w-5" />
-            <span>Filter</span>
-            <ChevronDownIcon className="h-4 w-4" />
-          </button>
-
-          <Cog6ToothIcon className="h-5 w-5 text-gray-400 hover:text-white/80 cursor-pointer" />
-          <Squares2X2Icon className="h-5 w-5 text-gray-400 hover:text-white/80 cursor-pointer" />
-
-          {/* quick-buy box */}
-          <div className="flex items-center gap-2 rounded-md border border-white/20 bg-card/80 px-3 py-1.5 text-sm text-gray-300">
-            <span className="font-medium">Quick&nbsp;Buy</span>
+        {/* Controls (hide in Pump mode) */}
+        {mode !== 'pump' && (
+          <div className="flex flex-wrap gap-4 items-center">
+            <label htmlFor="quick-buy" className="font-medium">Quick Buy</label>
             <input
+              id="quick-buy"
               type="number"
-              placeholder="0.0"
-              className="w-16 bg-transparent text-right placeholder:text-gray-500 focus:outline-none"
+              value={quickBuySol}
+              onChange={e => setQuickBuySol(parseFloat(e.target.value) || 0)}
+              className="w-20 bg-transparent text-right focus:outline-none border-b border-gray-600"
             />
+            <label htmlFor="from-token" className="text-gray-400">From</label>
+            <select
+              id="from-token"
+              value={inputMint}
+              onChange={e => setInputMint(e.target.value)}
+              className="bg-transparent text-white focus:outline-none border-b border-gray-600"
+            >
+              <option value={SOL_MINT}>SOL</option>
+              <option value={USDC_MINT}>USDC</option>
+              <option value={USDT_MINT}>USDT</option>
+            </select>
+            <span className="text-gray-400 ml-2">Balance:</span>
+            {balLoading ? (
+              <span className="animate-pulse bg-gray-600 h-4 w-12 rounded"></span>
+            ) : (
+              <span className="text-white font-mono">{walletBalance.toFixed(4)}</span>
+            )}
           </div>
-
-          {/* view presets */}
-          <div className="flex items-center gap-2">
-            {["S1", "S2", "S3"].map((p) => (
-              <button
-                key={p}
-                onClick={() => setViewPreset(p)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  viewPreset === p
-                    ? "bg-accent text-white"
-                    : "bg-card/80 text-gray-300 hover:bg-card/70"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
+        )}
+      </div>
       {/* MAIN TABLE AREA */}
-      {activeTab === "Pump Live" ? (
-        <PumpLiveTable />
-      ) : (
-        <TokenTable
-          search={search}
-          onRow={(coin) => {
+      <TokenTable
+        search={search}
+        quickBuySol={quickBuySol}
+        inputMint={inputMint}
+        inputDecimals={inputDecimals}
+        walletBalance={walletBalance}
+        balLoading={balLoading}
+        mode={mode}
+        onRow={(coin) => {
             setShowBuy(false);      // open chart drawer only
             setSelected(coin);
           }}
-          onBuy={(coin) => {
-            setSelected(coin);
-            setShowBuy(true);       // open buy confirmation
-          }}
-        />
-      )}
+      />
 
       {/* Chart side-drawer */}
       <ChartDrawer
@@ -122,3 +140,5 @@ export default function App() {
     </>
   );
 }
+
+export default App;

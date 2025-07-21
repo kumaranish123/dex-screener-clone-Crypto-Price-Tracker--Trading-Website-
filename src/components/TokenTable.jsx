@@ -1,4 +1,4 @@
-﻿import useMemecoins from "../hooks/useMemecoins";
+﻿import useJupiter from "../hooks/useJupiter";
 import usePumpFun from "../hooks/usePumpFun";
 import {
   ArrowTopRightOnSquareIcon,
@@ -9,7 +9,12 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   CurrencyDollarIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { useState, useMemo } from "react";
+import { handlePurchase } from '../worker';
+
+const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
 /* helpers -------------------------------------------------- */
 function fmt(x) {
@@ -36,26 +41,52 @@ function formatTimeRemaining(seconds) {
   return `${minutes}m`;
 }
 
+function getLogoURI(uri) {
+  if (!uri) return '/vite.svg';
+  if (uri.startsWith('ipfs://')) {
+    return uri.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
+  }
+  return uri;
+}
+
+function fixIpfsUrl(url) {
+  if (!url) return '/vite.svg';
+  // Fix cloudflare-ipfs.com links missing /ipfs/
+  if (url.startsWith('https://cloudflare-ipfs.com/') && !url.includes('/ipfs/')) {
+    const cid = url.split('cloudflare-ipfs.com/')[1];
+    return `https://cloudflare-ipfs.com/ipfs/${cid}`;
+  }
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
+  }
+  return url;
+}
+
 /* ---------------------------------------------------------- */
-export default function TokenTable({ search, onRow, onBuy }) {
-  const { data: memecoins, loading: memecoinsLoading, error: memecoinsError } = useMemecoins();
+export default function TokenTable({ search, onRow, mode = "dex", quickBuySol, inputMint, inputDecimals, walletBalance, balLoading }) {
+  const [processing, setProcessing] = useState(null);
+  const { tokens: jupTokens, loading: jupLoading, error: jupError } = useJupiter();
   const { data: pumpData, loading: pumpLoading, getTrendingPools } = usePumpFun();
+  const loading = jupLoading || pumpLoading;
+  const error = jupError;
 
-  // Limit Jupiter tokens to 10
-  const jupTokens = (memecoins || []).slice(0, 10);
-  // Limit Pump.fun trending tokens to 3
-  const trendingPumpTokens = getTrendingPools(3).filter(t => t.name && t.symbol);
-  const loading = memecoinsLoading || pumpLoading;
-  const error = memecoinsError;
-
-  console.log("memecoins", memecoins, "loading", loading);
-
-  const rows = loading
-    ? Array(10).fill({})
-    : [...trendingPumpTokens, ...jupTokens].filter((c, idx, arr) =>
-        arr.findIndex(x => x.symbol === c.symbol) === idx &&
-        (c.name + c.symbol).toLowerCase().includes(search.toLowerCase())
-      );
+  // Filtering logic for each mode
+  const rows = useMemo(() => {
+    if (loading) return Array(10).fill({});
+    if (mode === 'trending') {
+      return jupTokens
+        .filter(t => typeof t.change === 'number')
+        .sort((a, b) => (b.change ?? 0) - (a.change ?? 0))
+        .slice(0, 10);
+    }
+    if (mode === 'pump') {
+      return getTrendingPools(10).filter(p => p.name && p.symbol);
+    }
+    // default 'dex' mode
+    return jupTokens
+      .filter(t => (t.name + t.symbol).toLowerCase().includes(search.toLowerCase()))
+      .slice(0, 20);
+  }, [loading, mode, jupTokens, getTrendingPools, search]);
 
   return (
     <div className="mx-auto mt-6 max-w-7xl">
@@ -126,6 +157,10 @@ export default function TokenTable({ search, onRow, onBuy }) {
               const up24 = c.price_change_percentage_24h_in_currency ?? c.priceChange ?? 0;
               const isPumpToken = c.timeRemaining !== undefined;
 
+            const liq = c.liquidity ?? 0;
+            const noLiquidity = liq <= 0;
+            const isProcessing = processing === c.address;
+
             return (
               <tr
                   key={c.id ?? c.address ?? idx}
@@ -141,8 +176,10 @@ export default function TokenTable({ search, onRow, onBuy }) {
                         <div className="flex items-center gap-3">
                           <div className="relative">
                         <img
-                          src={c.logoURI}
+                          src={fixIpfsUrl(c.logoURI)}
                           alt={c.name}
+                          loading="lazy"
+                          onError={e => { e.target.onerror = null; e.target.src = '/vite.svg'; }}
                               className="h-10 w-10 rounded-full border-2 border-white/10"
                         />
                             {isPumpToken && (
@@ -181,38 +218,44 @@ export default function TokenTable({ search, onRow, onBuy }) {
                       <div className="animate-pulse bg-gray-600 h-4 w-16 rounded"></div>
                     ) : (
                       <div className="flex flex-col">
+                        {/* PRICE */}
                         <span className="font-medium text-white">
-                          ${(c.current_price || c.currentPriceUsd || c.launchPriceUsd || 0).toFixed(6)}
+                          ${((c.price ?? 0)).toFixed(6)}
                         </span>
-                        <span className={`flex items-center gap-1 text-xs ${
-                          up24 >= 0 ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          {up24 >= 0 ? (
-                            <ArrowUpIcon className="w-3 h-3" />
-                          ) : (
-                            <ArrowDownIcon className="w-3 h-3" />
-                          )}
-                          {Math.abs(up24).toFixed(2)}%
+                        {/* 24h CHANGE */}
+                        <span className={`
+                          flex items-center gap-1 text-xs
+                          ${ (c.change ?? 0) >= 0 ? 'text-green-400' : 'text-red-400' }
+                        `}>
+                          { (c.change ?? 0) >= 0
+                              ? <ArrowUpIcon className="w-3 h-3" />
+                              : <ArrowDownIcon className="w-3 h-3" />
+                          }
+                          { Math.abs((c.change ?? 0)).toFixed(2) }%
                         </span>
                     </div>
                   )}
                 </td>
 
                   {/* Market Cap -------------------------------------- */}
-                <td className="px-5 py-4 w-36 hidden md:table-cell">
+                  <td className="px-5 py-4 w-36 hidden md:table-cell">
                     {loading ? (
                       <div className="animate-pulse bg-gray-600 h-4 w-20 rounded"></div>
                     ) : (
-                      <span className="text-white">${fmt(c.market_cap || c.totalRaisedUsd)}</span>
+                        <span className="text-white">
+                          ${ fmt(c.liquidity ?? c.marketCap) }
+                        </span>
                     )}
                 </td>
 
                   {/* Volume ------------------------------------------ */}
-                <td className="px-5 py-4 w-32 hidden lg:table-cell">
+                  <td className="px-5 py-4 w-32 hidden lg:table-cell">
                     {loading ? (
                       <div className="animate-pulse bg-gray-600 h-4 w-20 rounded"></div>
                     ) : (
-                      <span className="text-white">${fmt(c.total_volume || 0)}</span>
+                        <span className="text-white">
+                          ${ fmt(c.volume ?? c.volume24h) }
+                        </span>
                     )}
                 </td>
 
@@ -240,19 +283,41 @@ export default function TokenTable({ search, onRow, onBuy }) {
 
                   {/* Buy button -------------------------------------- */}
                 <td
-                  className="px-5 py-4 w-28"
-                    onClick={(e) => e.stopPropagation()}
+                  className="px-5 py-4"
+                  onClick={e => e.stopPropagation()} // Prevent row click
+                >
+                  <button
+                    disabled={balLoading || walletBalance < quickBuySol || c.address === inputMint || noLiquidity || isProcessing}
+                    onClick={async () => {
+                      setProcessing(c.address);
+                      try {
+                        await handlePurchase(c, quickBuySol, inputMint, inputDecimals);
+                      } finally {
+                        setProcessing(null);
+                      }
+                    }}
+                    className={`
+                      rounded-lg px-4 py-2 text-sm font-medium text-white flex justify-center items-center min-h-[36px] min-w-[110px]
+                      transition-all duration-200 transform shadow-lg
+                      ${noLiquidity
+                        ? 'bg-gray-700 cursor-not-allowed'
+                        : balLoading || walletBalance < quickBuySol || c.address === inputMint
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-accent to-purple-500 hover:scale-105 hover:from-accent/80 hover:to-purple-500/80'}
+                    `}
                   >
-                    {loading ? (
-                      <div className="animate-pulse bg-gray-600 h-8 w-16 rounded"></div>
+                    {isProcessing ? (
+                      <ArrowPathIcon className="w-5 h-5 animate-spin text-white" />
                     ) : (
-                      <button
-                    onClick={() => onBuy?.(c)}
-                        className="rounded-lg bg-gradient-to-r from-accent to-purple-500 px-4 py-2 text-sm font-medium text-white hover:from-accent/80 hover:to-purple-500/80 transition-all duration-200 transform hover:scale-105 shadow-lg"
-                  >
-                        {isPumpToken ? 'Invest' : 'Buy'}
-                  </button>
+                      c.address === inputMint
+                        ? 'N/A'
+                        : walletBalance < quickBuySol
+                          ? 'Insufficient'
+                          : noLiquidity
+                            ? 'No Liquidity'
+                            : isPumpToken ? 'Invest' : 'Buy'
                     )}
+                  </button>
                 </td>
               </tr>
             );
@@ -264,11 +329,13 @@ export default function TokenTable({ search, onRow, onBuy }) {
       {!loading && rows.length === 0 && (
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-card/50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ChartBarIcon className="w-8 h-8 text-gray-400" />
+            <FireIcon className="w-8 h-8 text-gray-400" />
           </div>
-          <p className="text-gray-400">No tokens found matching your search</p>
+          <p className="text-gray-400">No active pools found</p>
         </div>
       )}
+
+      {/* Remove Show More and Load More buttons and related state */}
     </div>
   );
 }

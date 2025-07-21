@@ -7,8 +7,8 @@ import { clusterApiUrl } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css"; // default styles
 
 export default function SolanaWalletProvider({ children }) {
-  /* devnet for now – switch to "mainnet-beta" later */
-  const endpoint = clusterApiUrl("devnet");
+  // Use Mainnet endpoint for production
+  const endpoint = clusterApiUrl('mainnet-beta');
 
   /* the wallets we allow */
   const wallets = useMemo(

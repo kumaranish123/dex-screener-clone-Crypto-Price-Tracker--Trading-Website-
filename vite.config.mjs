@@ -3,6 +3,11 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
+  resolve: {
+    alias: [{ find: 'buffer', replacement: 'buffer/' }],
+  },
+  define: { 'process.env': {} },
+  optimizeDeps: { include: ['buffer'] },
   plugins: [react()],
   server: {
     proxy: {
@@ -22,9 +27,9 @@ export default defineConfig({
 
       // call  http://localhost:5173/pump/active?page=0&limit=100
       '/pump': {
-        target: 'https://client-api.pump.fun',
+        target: 'https://client-api.pump.fun/v1/launchpad',
         changeOrigin: true,
-        rewrite: p => p.replace(/^\/pump/, '/v2/launchpad'),
+        rewrite: path => path.replace(/^\/pump/, ''),
       },
     },
   },
